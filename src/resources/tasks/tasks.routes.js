@@ -1,16 +1,12 @@
 import { Router } from 'express';
-import {
-  listTasks,
-  getTask,
-  createTask,
-  updateTask,
-  deleteTask,
-} from './tasks.controller.js';
+import { tasksController } from './tasks.controller.js';
+import { validateTask } from './tasks.validation.js';
+import { validate } from '../../middleware/validate.js';
 
 export const tasksRouter = Router();
 
-tasksRouter.get('/', listTasks);
-tasksRouter.post('/', createTask);
-tasksRouter.get('/:id', getTask);
-tasksRouter.put('/:id', updateTask);
-tasksRouter.delete('/:id', deleteTask);
+tasksRouter.get('/', tasksController.list);
+tasksRouter.get('/:id', tasksController.get);
+tasksRouter.post('/', validate(validateTask), tasksController.create);
+tasksRouter.put('/:id', validate(validateTask, { partial: true }), tasksController.update);
+tasksRouter.delete('/:id', tasksController.remove);

@@ -1,0 +1,53 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm test)",
+      "Bash(npm run test*)",
+      "Bash(npm run lint)",
+      "Bash(npm run lint --fix)",
+      "Bash(npm run format)",
+      "Bash(npm run dev)",
+      "Bash(npm install)",
+      "Bash(node --version)",
+      "Bash(git status)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git add*)",
+      "Bash(git commit*)"
+    ],
+    "deny": [
+      "Bash(rm -rf*)",
+      "Bash(curl*)",
+      "Bash(wget*)",
+      "Bash(kill*)",
+      "Bash(shutdown*)",
+      "Bash(sudo*)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npm run lint --silent 2>&1 | head -20 || true",
+            "description": "Run ESLint after every file edit so you see issues immediately"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if grep -qE 'AKIA[0-9A-Z]{16}' \"$CLAUDE_TOOL_INPUT_FILE_PATH\" 2>/dev/null; then echo 'BLOCKED: AWS access key detected in file' >&2; exit 2; fi",
+            "description": "Block any write that would commit an AWS access key"
+          }
+        ]
+      }
+    ]
+  }
+}

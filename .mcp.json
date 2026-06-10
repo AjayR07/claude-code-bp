@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/Users/REPLACE_WITH_YOUR_USERNAME/Projects/Internal/claude-code-workshop"
+      ],
+      "description": "Filesystem MCP — gives Claude structured read/write access to the project directory. Safe, offline, no credentials needed."
+    }
+  }
+}

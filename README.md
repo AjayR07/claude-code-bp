@@ -1,36 +1,35 @@
 # Claude Code Workshop — Tasks API
 
-A deliberately small Express REST API for managing tasks. It exists as the
-**starting point for a hands-on Claude Code workshop**: clean enough that
-everyone can read the whole thing in a few minutes, and structured so that each
-Claude Code feature has an obvious place to land.
+A deliberately small but well-structured Express REST API for managing tasks.
+It is the **hands-on base for the Presidio "Mastering Claude Code" workshop** —
+structured so that every Claude Code feature has an obvious place to land.
 
-The full hands-on guide lives in **[`docs/WORKSHOP.md`](docs/WORKSHOP.md)**.
+Open **http://localhost:3000** after starting the server to see the interactive Swagger UI.
 
 ## Quick start
 
 ```bash
 npm install
-npm run dev      # start with auto-reload on http://localhost:3000
-npm test         # run the test suite
-npm run lint     # run ESLint
-npm run format   # run Prettier
+npm run dev      # dev server with auto-reload → http://localhost:3000
+npm test         # run the test suite (14 tests)
+npm run lint     # ESLint
+npm run format   # Prettier
 ```
 
 ## API
 
-Base URL: `http://localhost:3000`
+| Method | Path | Description |
+|---|---|---|
+| GET | `/` | → redirects to Swagger UI |
+| GET | `/api-docs` | Interactive Swagger UI |
+| GET | `/health` | Health check + uptime |
+| GET | `/api/tasks` | List tasks (filter + paginate) |
+| POST | `/api/tasks` | Create a task |
+| GET | `/api/tasks/:id` | Get one task |
+| PUT | `/api/tasks/:id` | Update a task (partial) |
+| DELETE | `/api/tasks/:id` | Delete a task |
 
-| Method | Path             | Description            |
-| ------ | ---------------- | ---------------------- |
-| GET    | `/health`        | Health check           |
-| GET    | `/api/tasks`     | List all tasks         |
-| POST   | `/api/tasks`     | Create a task          |
-| GET    | `/api/tasks/:id` | Get one task           |
-| PUT    | `/api/tasks/:id` | Update a task          |
-| DELETE | `/api/tasks/:id` | Delete a task          |
-
-A task looks like this:
+### Task shape
 
 ```json
 {
@@ -38,54 +37,91 @@ A task looks like this:
   "title": "Write the docs",
   "description": "Optional text",
   "status": "todo",
+  "priority": "medium",
+  "tags": ["claude", "workshop"],
+  "dueDate": "2026-12-31T00:00:00.000Z",
+  "assignee": "ajay",
   "createdAt": "2026-01-01T00:00:00.000Z",
   "updatedAt": "2026-01-01T00:00:00.000Z"
 }
 ```
 
-`status` must be one of `todo`, `in_progress`, or `done`. `title` is required.
+### Query params for `GET /api/tasks`
 
-### Try it
-
-```bash
-curl localhost:3000/api/tasks
-
-curl -X POST localhost:3000/api/tasks \
-  -H 'Content-Type: application/json' \
-  -d '{"title":"Try Claude Code","status":"in_progress"}'
-```
+| Param | Values | Default |
+|---|---|---|
+| `status` | `todo` \| `in_progress` \| `done` | — |
+| `priority` | `low` \| `medium` \| `high` | — |
+| `assignee` | any string | — |
+| `tag` | any string | — |
+| `page` | integer ≥ 1 | 1 |
+| `limit` | 1–100 | 20 |
 
 ## Project structure
 
 ```
 src/
-  app.js                     # builds the Express app (mount new routers here)
-  server.js                  # starts the HTTP server
+  config.js                    # all env-var config (PORT, LOG_REQUESTS, …)
+  app.js                       # Express app factory
+  server.js                    # HTTP server entry
+  docs/
+    swagger.js                 # OpenAPI 3.0 spec
+  errors/
+    AppError.js                # NotFoundError, ValidationError, ConflictError
   middleware/
-    errorHandler.js          # central 500 handler
-    notFound.js              # 404 handler
+    requestLogger.js           # structured request logger
+    validate.js                # validation middleware factory
+    errorHandler.js            # central error handler
+    notFound.js                # 404 fallback
+  utils/
+    pagination.js              # paginate(items, query) helper
   store/
-    createStore.js           # generic in-memory store factory
+    createStore.js             # generic in-memory collection factory
   resources/
-    tasks/                   # one folder per resource — the pattern to copy
-      tasks.routes.js        # endpoint -> controller wiring
-      tasks.controller.js    # HTTP layer (request/response)
-      tasks.service.js       # business logic
-      tasks.validation.js    # payload validation
-      tasks.store.js         # this resource's data + seed
+    CLAUDE.md                  # folder-scoped memory (loads for src/resources/**)
+    tasks/                     # fully implemented — the pattern to copy
+    projects/                  # starter stub — Exercise 3 completes this
 tests/
-  tasks.test.js              # integration tests (node:test + supertest)
+  tasks.test.js
 docs/
-  WORKSHOP.md                # the hands-on exercise guide
-CLAUDE.md                    # project memory (you flesh this out in Exercise 1)
+  WORKBOOK.md                  ← START HERE for hands-on exercises
+  WORKSHOP.md                  # original workshop exercise guide
+  architecture.md              # data model + request flow reference
+  MCP_SETUP.md                 # MCP integration guide
+  PLUGIN_GUIDE.md              # claude-automation-recommender + plugin bundling
+.claude/
+  rules/
+    resources.md               # path-scoped: src/resources/**
+    security.md                # global security rules
+  skills/
+    new-resource/SKILL.md      # scaffold a 5-file resource
+    code-reviewer/SKILL.md     # structured code review checklist
+  agents/
+    code-reviewer.md           # Sonnet review agent (read-only + npm test/lint)
+    explorer.md                # Haiku exploration agent (read-only)
+  settings.json                # allow/deny lists + PostToolUse lint + PreToolUse secret guard
+.mcp.json                      # filesystem MCP stub (update path, then claude mcp add)
+CLAUDE.md                      # project memory — the reference implementation
+ASSIGNMENT.md                  # original workshop assignment description
 ```
 
-The **resource pattern** (routes → controller → service → validation → store) is
-the single convention to internalize: every new resource copies it. That
-repetition is exactly what makes it a good target for a Claude Code skill.
+## The resource pattern
+
+Every resource in `src/resources/<name>/` follows five files:
+
+| File | Role |
+|---|---|
+| `<name>.routes.js` | Path wiring + `validate()` middleware |
+| `<name>.controller.js` | HTTP only — reads `req.validated`, calls service |
+| `<name>.service.js` | Business logic — throws `AppError` subclasses |
+| `<name>.validation.js` | Pure validation — returns `{ value, errors }` |
+| `<name>.store.js` | Store instance + seed data |
+
+Use the `/new-resource` skill in Claude Code to scaffold any new resource.
 
 ## Notes
 
-- Data is **in-memory** and resets on restart — no database to set up.
-- Node 20+ required (uses the built-in test runner and `node --watch`).
-- No framework magic: the whole app is a few small files you can read top to bottom.
+- Data is **in-memory** — resets on restart. No database to set up.
+- Node 20+ required (built-in test runner + `node --watch`).
+- `PORT` env var controls the port (default 3000).
+- Set `LOG_REQUESTS=false` to silence the request logger in tests.

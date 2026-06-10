@@ -1,35 +1,60 @@
 import { tasksService } from './tasks.service.js';
-import { validateTask } from './tasks.validation.js';
 
-export function listTasks(req, res) {
-  res.json({ data: tasksService.list() });
-}
+/**
+ * HTTP layer for the Tasks resource.
+ *
+ * Controllers are kept thin: parse route params, call the service, format the
+ * response. Business logic lives in the service; validation lives in the
+ * validate middleware (req.validated is already clean by the time we get here).
+ */
+export const tasksController = {
+  /** GET /api/tasks */
+  list(req, res, next) {
+    try {
+      const result = tasksService.list(req.query);
+      res.json(result); // { data, meta }
+    } catch (err) {
+      next(err);
+    }
+  },
 
-export function getTask(req, res) {
-  const task = tasksService.get(req.params.id);
-  if (!task) return res.status(404).json({ error: 'Task not found' });
-  res.json({ data: task });
-}
+  /** GET /api/tasks/:id */
+  get(req, res, next) {
+    try {
+      const task = tasksService.get(req.params.id);
+      res.json({ data: task });
+    } catch (err) {
+      next(err);
+    }
+  },
 
-export function createTask(req, res) {
-  const { value, errors } = validateTask(req.body ?? {});
-  if (errors.length > 0) return res.status(400).json({ errors });
+  /** POST /api/tasks */
+  create(req, res, next) {
+    try {
+      const task = tasksService.create(req.validated);
+      res.status(201).json({ data: task });
+    } catch (err) {
+      next(err);
+    }
+  },
 
-  const task = tasksService.create(value);
-  res.status(201).json({ data: task });
-}
+  /** PUT /api/tasks/:id */
+  update(req, res, next) {
+    try {
+      const task = tasksService.update(req.params.id, req.validated);
+      res.json({ data: task });
+    } catch (err) {
+      next(err);
+    }
+  },
 
-export function updateTask(req, res) {
-  const { value, errors } = validateTask(req.body ?? {}, { partial: true });
-  if (errors.length > 0) return res.status(400).json({ errors });
-
-  const task = tasksService.update(req.params.id, value);
-  if (!task) return res.status(404).json({ error: 'Task not found' });
-  res.json({ data: task });
-}
-
-export function deleteTask(req, res) {
-  const removed = tasksService.remove(req.params.id);
-  if (!removed) return res.status(404).json({ error: 'Task not found' });
-  res.status(204).send();
-}
+  /** DELETE /api/tasks/:id */
+  remove(req, res, next) {
+    try {
+      tasksService.remove(req.params.id);
+      res.status(204).end();
+    } catch (err) {
+      next(err);
+    }
+  },
+};
