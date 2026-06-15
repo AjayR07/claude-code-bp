@@ -1,0 +1,1382 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mastering Claude Code — Interactive Workshop</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --bg: #07070f;
+  --bg2: #0e0e1c;
+  --bg3: #13132a;
+  --surface: rgba(255,255,255,0.04);
+  --surface-hover: rgba(255,255,255,0.07);
+  --border: rgba(255,255,255,0.08);
+  --border-hover: rgba(255,255,255,0.18);
+  --text: #e2e8f0;
+  --muted: #64748b;
+  --subtle: #94a3b8;
+  --orange: #f59e0b;
+  --blue: #3b82f6;
+  --green: #4ade80;
+  --red: #f87171;
+  --font: 'Inter', sans-serif;
+  --mono: 'JetBrains Mono', monospace;
+  --radius: 14px;
+  --sidebar-w: 260px;
+  --transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+/* ── Layout ── */
+.shell { display: flex; height: 100vh; }
+
+/* ── Sidebar ── */
+.sidebar {
+  width: var(--sidebar-w);
+  min-width: var(--sidebar-w);
+  height: 100vh;
+  background: rgba(0,0,0,0.4);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  backdrop-filter: blur(20px);
+  z-index: 10;
+  overflow: hidden;
+}
+.sidebar-brand {
+  padding: 24px 20px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.sidebar-brand .logo { font-weight: 800; font-size: 13px; letter-spacing: 0.12em; color: var(--orange); text-transform: uppercase; }
+.sidebar-brand .title { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+.progress-bar-wrap { padding: 14px 20px; border-bottom: 1px solid var(--border); }
+.progress-label { font-size: 11px; color: var(--muted); margin-bottom: 7px; display: flex; justify-content: space-between; }
+.progress-bar { height: 4px; background: rgba(255,255,255,0.08); border-radius: 99px; overflow: hidden; }
+.progress-fill { height: 100%; background: linear-gradient(90deg, var(--orange), #f97316); border-radius: 99px; transition: width 0.6s ease; }
+
+.sidebar-timer { padding: 10px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+.timer-icon { font-size: 12px; }
+.timer-val { font-size: 12px; color: var(--subtle); font-variant-numeric: tabular-nums; font-family: var(--mono); }
+
+.module-nav { flex: 1; overflow-y: auto; padding: 12px 0; }
+.module-nav::-webkit-scrollbar { width: 4px; }
+.module-nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 99px; }
+
+.nav-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 20px; cursor: pointer;
+  transition: var(--transition); position: relative;
+}
+.nav-item:hover { background: var(--surface-hover); }
+.nav-item.active { background: var(--surface); }
+.nav-item.active::before {
+  content: ''; position: absolute; left: 0; top: 6px; bottom: 6px;
+  width: 3px; border-radius: 0 3px 3px 0;
+  background: var(--module-color, var(--orange));
+}
+.nav-dot {
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.15);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; color: var(--muted);
+  flex: 0 0 auto; transition: var(--transition);
+}
+.nav-item.done .nav-dot {
+  background: var(--green); border-color: var(--green); color: #000;
+  font-size: 13px;
+}
+.nav-item.active .nav-dot {
+  border-color: var(--module-color, var(--orange));
+  color: var(--module-color, var(--orange));
+}
+.nav-item-text { flex: 1; min-width: 0; }
+.nav-item-num { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
+.nav-item-title { font-size: 13px; font-weight: 600; color: var(--text); line-height: 1.3; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.sidebar-footer { padding: 16px 20px; border-top: 1px solid var(--border); }
+.kbd-hints { display: flex; flex-direction: column; gap: 5px; }
+.kbd-row { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
+kbd { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12); border-radius: 4px; padding: 1px 5px; font-family: var(--mono); font-size: 10px; color: var(--subtle); }
+
+/* ── Main ── */
+.main { flex: 1; height: 100vh; overflow: hidden; position: relative; }
+.stage { width: 100%; height: 100vh; overflow-y: auto; }
+.stage::-webkit-scrollbar { width: 5px; }
+.stage::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 99px; }
+
+.module-view { display: none; animation: fadeSlide 0.4s ease; }
+.module-view.active { display: block; }
+@keyframes fadeSlide {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Module Header ── */
+.module-header {
+  padding: 40px 56px 32px;
+  background: linear-gradient(135deg, rgba(0,0,0,0.3) 0%, transparent 100%);
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 5;
+  backdrop-filter: blur(20px);
+}
+.module-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: var(--module-color); margin-bottom: 8px; display: flex; align-items: center; gap: 10px; }
+.module-eyebrow::before { content: ''; display: block; width: 24px; height: 2px; background: var(--module-color); border-radius: 2px; }
+.module-title-row { display: flex; align-items: center; gap: 16px; }
+.module-icon { font-size: 32px; }
+.module-h1 { font-size: 36px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; }
+.module-subtitle { font-size: 15px; color: var(--subtle); margin-top: 6px; }
+
+/* ── Content areas ── */
+.module-body { padding: 40px 56px 100px; max-width: 1000px; }
+
+/* ── Scenario ── */
+.scenario-card {
+  background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--module-color);
+  border-radius: var(--radius);
+  padding: 28px 32px;
+  margin-bottom: 28px;
+  position: relative;
+  overflow: hidden;
+}
+.scenario-card::before {
+  content: ''; position: absolute; top: -40px; right: -40px;
+  width: 120px; height: 120px; border-radius: 50%;
+  background: var(--module-color); opacity: 0.05;
+}
+.scenario-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.14em; color: var(--module-color); margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+.scenario-label svg { width: 14px; height: 14px; }
+.scenario-story { font-size: 15px; line-height: 1.75; color: var(--text); }
+.scenario-story strong { color: #fff; }
+.scenario-chars { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+.char-chip {
+  display: flex; align-items: center; gap: 8px;
+  background: rgba(255,255,255,0.06); border: 1px solid var(--border);
+  border-radius: 99px; padding: 5px 12px 5px 5px;
+  font-size: 12px; color: var(--subtle);
+}
+.char-avatar {
+  width: 22px; height: 22px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 700; color: #000;
+}
+
+/* ── Problem Options ── */
+.section-heading { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.14em; color: var(--muted); margin-bottom: 14px; margin-top: 28px; }
+
+.options-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 28px; }
+.option-card {
+  border: 1.5px solid var(--border); border-radius: 12px;
+  padding: 18px 20px; cursor: pointer;
+  transition: var(--transition); position: relative;
+  background: var(--surface);
+}
+.option-card:hover { border-color: var(--border-hover); background: var(--surface-hover); }
+.option-card.selected-wrong { border-color: var(--red); background: rgba(248,113,113,0.06); }
+.option-card.selected-right { border-color: var(--green); background: rgba(74,222,128,0.06); }
+.option-icon { font-size: 20px; margin-bottom: 10px; }
+.option-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+.option-desc { font-size: 12px; color: var(--muted); line-height: 1.5; }
+.option-badge {
+  position: absolute; top: 10px; right: 10px;
+  font-size: 11px; font-weight: 700; padding: 2px 8px;
+  border-radius: 99px; display: none;
+}
+.option-card.selected-right .option-badge { display: block; background: var(--green); color: #000; }
+.option-card.selected-wrong .option-badge { display: block; background: var(--red); color: #fff; }
+
+/* ── Tasks ── */
+.tasks-section { margin-bottom: 32px; }
+.task-list { display: flex; flex-direction: column; gap: 10px; }
+.task-item {
+  display: flex; gap: 16px; align-items: flex-start;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 18px 20px;
+  transition: var(--transition); cursor: default;
+}
+.task-item.done { opacity: 0.65; }
+.task-item.done .task-content { text-decoration: none; }
+.task-check {
+  width: 24px; height: 24px; border-radius: 50%;
+  border: 2px solid var(--border-hover); flex: 0 0 auto;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: var(--transition); margin-top: 1px;
+}
+.task-item.done .task-check { background: var(--green); border-color: var(--green); }
+.task-content { flex: 1; }
+.task-step { font-size: 11px; font-weight: 700; color: var(--module-color); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px; }
+.task-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+.task-desc { font-size: 13px; color: var(--subtle); line-height: 1.6; }
+.task-code {
+  margin-top: 10px; background: #0a0a14; border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 8px; padding: 12px 14px;
+  font-family: var(--mono); font-size: 12.5px; color: #a5b4fc;
+  line-height: 1.6; position: relative;
+}
+.task-code .copy-btn {
+  position: absolute; top: 8px; right: 8px;
+  background: rgba(255,255,255,0.07); border: 1px solid var(--border);
+  color: var(--muted); border-radius: 6px; padding: 3px 8px;
+  font-size: 10px; cursor: pointer; font-family: var(--font);
+  transition: var(--transition);
+}
+.task-code .copy-btn:hover { background: rgba(255,255,255,0.12); color: var(--text); }
+.task-code .copy-btn.copied { color: var(--green); border-color: var(--green); }
+
+/* ── Complete button ── */
+.complete-btn {
+  display: flex; align-items: center; gap: 10px;
+  background: linear-gradient(135deg, var(--module-color), color-mix(in srgb, var(--module-color) 70%, #fff));
+  color: #000; border: none; border-radius: 12px;
+  padding: 14px 28px; font-size: 14px; font-weight: 700;
+  cursor: pointer; transition: var(--transition);
+  font-family: var(--font); margin-top: 28px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+}
+.complete-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
+.complete-btn:active { transform: translateY(0); }
+.complete-btn.done { background: linear-gradient(135deg, #4ade80, #22c55e); }
+
+/* ── Best Version Reveal ── */
+.best-version {
+  margin-top: 32px; border: 1px solid var(--module-color);
+  border-radius: var(--radius); overflow: hidden;
+  display: none; animation: revealDown 0.5s ease;
+}
+.best-version.visible { display: block; }
+@keyframes revealDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.best-version-header {
+  background: linear-gradient(135deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
+  padding: 16px 22px; display: flex; align-items: center; gap: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.best-version-header .bv-icon { font-size: 18px; }
+.best-version-header h3 { font-size: 14px; font-weight: 700; color: var(--module-color); }
+.best-version-header p { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.best-version-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); padding: 0 22px; }
+.bv-tab {
+  padding: 10px 16px; font-size: 12px; font-weight: 600;
+  color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent;
+  transition: var(--transition); margin-bottom: -1px;
+}
+.bv-tab.active { color: var(--module-color); border-bottom-color: var(--module-color); }
+.bv-panel { display: none; padding: 22px; }
+.bv-panel.active { display: block; }
+.bv-code {
+  background: #060610; border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 10px; padding: 18px 20px;
+  font-family: var(--mono); font-size: 12.5px; line-height: 1.7;
+  overflow-x: auto; white-space: pre; color: #cbd5e1;
+  position: relative;
+}
+.bv-code .copy-btn {
+  position: absolute; top: 10px; right: 10px;
+  background: rgba(255,255,255,0.06); border: 1px solid var(--border);
+  color: var(--muted); border-radius: 6px; padding: 4px 10px;
+  font-size: 11px; cursor: pointer; font-family: var(--font);
+  transition: var(--transition);
+}
+.bv-code .copy-btn:hover { color: var(--text); background: rgba(255,255,255,0.1); }
+.bv-code .copy-btn.copied { color: var(--green); }
+.hl-comment { color: #4a5568; }
+.hl-key { color: #f6c177; }
+.hl-str { color: #a3d295; }
+.hl-val { color: #8ec5fc; }
+.hl-head { color: #fc8181; font-weight: 700; }
+.hl-cmd { color: #f97316; }
+.hl-ok { color: #4ade80; }
+
+.annotation-list { display: flex; flex-direction: column; gap: 10px; }
+.annotation {
+  display: flex; gap: 12px; align-items: flex-start;
+  padding: 12px 14px; background: rgba(255,255,255,0.03);
+  border-radius: 10px; border: 1px solid var(--border);
+}
+.annotation-num {
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--module-color); color: #000;
+  font-size: 11px; font-weight: 800; display: flex; align-items: center; justify-content: center;
+  flex: 0 0 auto;
+}
+.annotation-text { font-size: 13px; color: var(--subtle); line-height: 1.6; }
+.annotation-text strong { color: var(--text); }
+
+/* ── Takeaways ── */
+.takeaways { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; }
+.takeaway {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; padding: 12px 16px;
+  font-size: 13px; color: var(--subtle); line-height: 1.5;
+  display: flex; gap: 10px; align-items: flex-start;
+  flex: 1 1 280px;
+}
+.takeaway-icon { font-size: 16px; flex: 0 0 auto; margin-top: 1px; }
+
+/* ── Nav buttons ── */
+.module-nav-btns {
+  position: fixed; bottom: 28px; right: 40px;
+  display: flex; gap: 10px; z-index: 100;
+}
+.nav-btn {
+  background: rgba(15,15,30,0.85); border: 1px solid var(--border);
+  color: var(--text); border-radius: 12px; padding: 11px 20px;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  font-family: var(--font); transition: var(--transition);
+  backdrop-filter: blur(12px); display: flex; align-items: center; gap: 8px;
+}
+.nav-btn:hover { border-color: var(--border-hover); background: rgba(255,255,255,0.06); }
+.nav-btn.primary { background: var(--module-color); color: #000; border-color: transparent; }
+.nav-btn.primary:hover { opacity: 0.9; }
+.nav-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+/* ── Confetti ── */
+.confetti-wrap { position: fixed; inset: 0; pointer-events: none; z-index: 9999; }
+.confetti-piece {
+  position: absolute; width: 8px; height: 8px;
+  animation: confettiFall linear forwards;
+}
+@keyframes confettiFall {
+  0%   { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
+}
+
+/* ── Completion screen ── */
+.completion-screen {
+  display: none; flex-direction: column; align-items: center; justify-content: center;
+  height: 100vh; text-align: center; padding: 40px;
+}
+.completion-screen.show { display: flex; }
+.completion-emoji { font-size: 72px; margin-bottom: 24px; animation: bounce 1s ease infinite alternate; }
+@keyframes bounce { from { transform: scale(1); } to { transform: scale(1.1); } }
+.completion-title { font-size: 48px; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 12px; background: linear-gradient(135deg, var(--orange), #f97316, #ef4444); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.completion-sub { font-size: 18px; color: var(--subtle); max-width: 520px; line-height: 1.6; }
+.completion-badges { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 32px; }
+.badge {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 99px; padding: 8px 16px; font-size: 13px; color: var(--text);
+  display: flex; align-items: center; gap: 8px;
+}
+
+/* ── Misc ── */
+.divider { height: 1px; background: var(--border); margin: 28px 0; }
+.callout {
+  background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+  border-radius: 10px; padding: 14px 18px;
+  font-size: 13px; color: var(--subtle); line-height: 1.6; margin-top: 14px;
+}
+.callout strong { color: var(--text); }
+.callout.warn { border-color: rgba(245,158,11,0.3); background: rgba(245,158,11,0.06); }
+.callout.good { border-color: rgba(74,222,128,0.3); background: rgba(74,222,128,0.06); }
+</style>
+</head>
+<body>
+<div class="shell">
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="logo">Presidio</div>
+      <div class="title">Mastering Claude Code</div>
+    </div>
+    <div class="progress-bar-wrap">
+      <div class="progress-label"><span>Progress</span><span id="progress-text">0 / 9</span></div>
+      <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+    </div>
+    <div class="sidebar-timer">
+      <span class="timer-icon">⏱</span>
+      <span class="timer-val" id="timer">00:00</span>
+      <span class="timer-val" style="margin-left:4px;color:#374151">· session</span>
+    </div>
+    <nav class="module-nav" id="module-nav"></nav>
+    <div class="sidebar-footer">
+      <div class="kbd-hints">
+        <div class="kbd-row"><kbd>←</kbd><kbd>→</kbd> Navigate modules</div>
+        <div class="kbd-row"><kbd>Space</kbd> Mark complete</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main stage -->
+  <main class="main">
+    <div class="stage" id="stage"></div>
+    <div class="completion-screen" id="completion">
+      <div class="confetti-wrap" id="confetti"></div>
+      <div class="completion-emoji">🎉</div>
+      <div class="completion-title">Workshop Complete!</div>
+      <div class="completion-sub">You've touched every major Claude Code feature. Your team's AI workflow will never be the same.</div>
+      <div class="completion-badges" id="completion-badges"></div>
+    </div>
+  </main>
+</div>
+
+<div class="module-nav-btns">
+  <button class="nav-btn" id="btn-prev" onclick="navigate(-1)">← Previous</button>
+  <button class="nav-btn primary" id="btn-next" onclick="navigate(1)">Next →</button>
+</div>
+
+<script>
+// ── Module data ──────────────────────────────────────────────────────────────
+const MODULES = [
+{
+  id: 1, icon: '🧠', color: '#f59e0b',
+  eyebrow: 'Module 01', title: 'CLAUDE.md', subtitle: 'Give Claude a long-term memory of your project',
+  scenario: {
+    story: `It's Monday morning. <strong>Sarah</strong> (senior dev) asks Claude to "add an endpoint for updating task status". Claude produces a clean controller with inline validation — no middleware, no service layer. <strong>Mike</strong> (junior dev) asks the same thing. He gets a different pattern entirely. <strong>Priya</strong> (tech lead) now spends her code reviews correcting both of them. Claude starts every session knowing <em>nothing</em> about your project.`,
+    chars: [
+      { name: 'Sarah', role: 'Senior Dev', color: '#3b82f6' },
+      { name: 'Mike', role: 'Junior Dev', color: '#8b5cf6' },
+      { name: 'Priya', role: 'Tech Lead', color: '#ec4899' },
+    ]
+  },
+  options: [
+    { icon: '💬', title: 'Paste the rules each session', desc: 'Copy-paste your conventions into every chat. Hope no one forgets.', correct: false },
+    { icon: '🧠', title: 'CLAUDE.md — project memory', desc: 'Claude reads this file before every session. One source of truth.', correct: true },
+    { icon: '🙏', title: 'Trust Claude\'s defaults', desc: 'Claude is smart — it\'ll figure out your patterns eventually.', correct: false },
+  ],
+  optionFeedback: '✅ CLAUDE.md is read at startup every single session. Your entire team gets the same context automatically.',
+  tasks: [
+    { title: 'Start a Claude Code session', desc: 'Open your terminal in the workshop repo and run Claude Code.', code: 'cd claude-code-workshop\nclaude' },
+    { title: 'Run /init to generate a starter file', desc: 'Let Claude analyse the repo and draft an initial CLAUDE.md.', code: '/init' },
+    { title: 'Compare Claude\'s draft to the reference', desc: 'Open the existing CLAUDE.md in the repo. Notice the difference in specificity — commands, conventions, hard rules.', code: 'cat CLAUDE.md' },
+    { title: 'Verify Claude loaded it', desc: 'Ask Claude a question it could only answer from CLAUDE.md.', code: '# In Claude Code:\nWhat test command should I run before submitting a PR?' },
+    { title: 'Save a personal note mid-session', desc: 'Use the # shortcut — Claude saves it to the right CLAUDE.md scope and asks which scope.', code: '# My machine runs Node 22. Remind me if version matters.' },
+    { title: 'Inspect what\'s loaded', desc: 'Run /memory and notice both the root CLAUDE.md and the folder-scoped one in src/resources/ appear.', code: '/memory' },
+  ],
+  bestVersion: {
+    tabs: ['The file', 'What to notice', 'Mistakes to avoid'],
+    panels: [
+      { type: 'code', content: `<span class="hl-comment"># CLAUDE.md — Tasks API</span>
+
+<span class="hl-head">## What this is</span>
+Express 4 REST API (ESM, Node 20+) for managing tasks.
+In-memory store — no database. Read the whole app in minutes.
+
+<span class="hl-head">## Quick commands</span>
+<span class="hl-str">npm run dev</span>    <span class="hl-comment"># http://localhost:3000 → Swagger UI</span>
+<span class="hl-str">npm test</span>       <span class="hl-comment"># node:test + supertest  (must pass before PR)</span>
+<span class="hl-str">npm run lint</span>   <span class="hl-comment"># ESLint — must be clean</span>
+
+<span class="hl-head">## The resource pattern (5 files per resource)</span>
+routes → controller → service → validation → store
+<span class="hl-comment"># Never merge roles. Never skip a file.</span>
+
+<span class="hl-head">## Hard rules</span>
+- Controller reads req.validated ONLY (never req.body)
+- Service throws AppError subclasses (never raw status codes)
+- All write endpoints use validate() middleware
+- Never commit secrets or tokens
+
+See <span class="hl-val">@docs/architecture.md</span> for the full data model.` },
+      { type: 'annotations', items: [
+        { num: 1, text: '<strong>Commands that actually work</strong> — not "npm install" but the exact commands with inline notes.' },
+        { num: 2, text: '<strong>The resource pattern in two lines</strong> — this prevents Sarah and Mike from getting different outputs.' },
+        { num: 3, text: '<strong>Hard rules vs soft conventions</strong> — "must" language, not "try to".' },
+        { num: 4, text: '<strong>@import instead of copy-paste</strong> — keeps the root file lean while pulling in detail on demand.' },
+      ]},
+      { type: 'annotations', items: [
+        { num: '✗', text: '<strong>Don\'t paste your entire style guide</strong> — link or @import it instead. Every line costs tokens every turn.' },
+        { num: '✗', text: '<strong>Don\'t add stale info</strong> — "We use Webpack" when you migrated to Vite is actively harmful.' },
+        { num: '✗', text: '<strong>Don\'t write vague rules</strong> — "write clean code" changes nothing. "Controller reads req.validated ONLY" does.' },
+      ]},
+    ]
+  },
+  takeaways: [
+    { icon: '📌', text: 'CLAUDE.md is re-read every turn — make every line earn its tokens.' },
+    { icon: '🎯', text: 'Specific, checkable rules ("never touch req.body") change behaviour. Vague advice doesn\'t.' },
+    { icon: '🔗', text: 'Use @imports to keep the root file lean and pull in detail only where needed.' },
+  ]
+},
+{
+  id: 2, icon: '📐', color: '#3b82f6',
+  eyebrow: 'Module 02', title: 'Rules', subtitle: 'Scoped context that loads only where it matters',
+  scenario: {
+    story: `Three weeks in, the team CLAUDE.md has grown to 280 lines. <strong>Alex</strong> is editing a backend service — but React component rules are loading. Every turn is paying for 80 lines of frontend context that's completely irrelevant. <strong>Jordan</strong> proposes adding database migration rules, which would push it to 350 lines. Something needs to change.`,
+    chars: [
+      { name: 'Alex', role: 'Backend Eng', color: '#14b8a6' },
+      { name: 'Jordan', role: 'DevOps', color: '#6366f1' },
+    ]
+  },
+  options: [
+    { icon: '📝', title: 'Keep one big CLAUDE.md', desc: 'Just add more sections and hope Claude ignores what\'s irrelevant.', correct: false },
+    { icon: '📐', title: 'Path-scoped rules', desc: 'Rules in .claude/rules/ load only when Claude touches matching files.', correct: true },
+    { icon: '🗑️', title: 'Delete the old rules', desc: 'Start fresh and try to keep the file shorter this time.', correct: false },
+  ],
+  optionFeedback: '✅ Path-scoped rules are zero cost when Claude works outside that path. The token cost only appears when it\'s actually relevant.',
+  tasks: [
+    { title: 'Open the existing resource rule', desc: 'Read the path-scoped rule and notice the YAML front-matter at the top.', code: 'cat .claude/rules/resources.md' },
+    { title: 'Understand the paths filter', desc: 'The "paths:" key is what scopes it. Without it, the rule loads everywhere.', code: '<span class="hl-comment">---\npaths: ["src/resources/**"]\n---\n# This only loads when Claude touches src/resources/**</span>' },
+    { title: 'Trigger the rule — edit a resource file', desc: 'Ask Claude to add a comment to the tasks service. Watch the rule fire.', code: '# In Claude Code:\nAdd a brief JSDoc comment to tasksService.list()' },
+    { title: 'Create your own rule for tests/', desc: 'Write a path-scoped rule that enforces test conventions.', code: '# In Claude Code:\nCreate .claude/rules/testing.md with a paths filter for tests/**\nIt should require: descriptive names, happy + error paths, no mocking the store.' },
+    { title: 'Check what\'s active', desc: 'Run /memory and look for the rules section. Count what\'s loaded.', code: '/memory' },
+  ],
+  bestVersion: {
+    tabs: ['resources.md', 'security.md', 'What to notice'],
+    panels: [
+      { type: 'code', content: `<span class="hl-comment">---\npaths: ["src/resources/**"]\n---</span>
+
+<span class="hl-head"># Resource pattern rule</span>
+
+When working on any file under <span class="hl-val">src/resources/</span>, follow the 5-file pattern:
+
+1. <span class="hl-key">routes</span>   — path wiring + validate() middleware
+2. <span class="hl-key">controller</span> — reads req.validated, calls service, sends res
+3. <span class="hl-key">service</span>  — business logic, throws AppError subclasses
+4. <span class="hl-key">validation</span> — pure function, returns { value, errors }
+5. <span class="hl-key">store</span>   — store instance + seed data
+
+Create ALL 5 files. Never merge roles.
+After scaffolding: mount the router in <span class="hl-val">src/app.js</span>.` },
+      { type: 'code', content: `<span class="hl-comment">---\npaths: ["**"]\n---</span>
+
+<span class="hl-head"># Security rules (global)</span>
+
+<span class="hl-key">Secrets:</span>
+- Never write API keys, tokens, or credentials to any file
+- Never include strings matching AKIA[0-9A-Z]{16}
+
+<span class="hl-key">Validation:</span>
+- ALL POST and PUT routes must use validate() middleware
+- Controllers read req.validated ONLY, never req.body
+
+<span class="hl-key">Logging:</span>
+- No console.log in production code paths
+- Logger middleware is the exception` },
+      { type: 'annotations', items: [
+        { num: 1, text: '<strong>YAML front-matter</strong> — the "---" delimited block at the top is what Claude uses to decide when to load the rule.' },
+        { num: 2, text: '<strong>No front-matter = global</strong> — if you omit "paths:", the rule loads for every file. Use this sparingly.' },
+        { num: 3, text: '<strong>Folder-scoped CLAUDE.md</strong> — placing a CLAUDE.md inside src/resources/ does the same thing. Check src/resources/CLAUDE.md.' },
+        { num: 4, text: '<strong>The cost model</strong> — a scoped rule costs 0 tokens when Claude edits a server.js file. A global rule always costs.' },
+      ]},
+    ]
+  },
+  takeaways: [
+    { icon: '💰', text: 'Scoped rules save tokens every turn — frontend rules don\'t load when editing the backend.' },
+    { icon: '🗂️', text: '.claude/rules/ and folder-scoped CLAUDE.md files are two ways to achieve the same scoping.' },
+    { icon: '🌍', text: 'Omit paths: for truly global rules like security — they should always load.' },
+  ]
+},
+{
+  id: 3, icon: '⚡', color: '#8b5cf6',
+  eyebrow: 'Module 03', title: 'Skills', subtitle: 'Encode repeatable workflows once for the whole team',
+  scenario: {
+    story: `<strong>Priya</strong> is the go-to person for scaffolding new API resources. Every sprint she types the same five messages: "follow the 5-file pattern", "create routes, controller, service, validation, store", "add tests", "mount in app.js", "run lint". She's done this for 11 resources across 3 projects this quarter. She's also the only person who gets it right first time.`,
+    chars: [
+      { name: 'Priya', role: 'Tech Lead', color: '#ec4899' },
+      { name: 'Mike', role: 'Junior Dev', color: '#8b5cf6' },
+    ]
+  },
+  options: [
+    { icon: '📋', title: 'Write a runbook doc', desc: 'Document the steps in Confluence. Hope people read it.', correct: false },
+    { icon: '⚡', title: 'Encode it as a Skill', desc: 'Claude reads the skill description and follows its checklist automatically.', correct: true },
+    { icon: '🔁', title: 'Keep prompting each time', desc: 'Priya pastes her 5-message workflow as a snippet. Inconsistent forever.', correct: false },
+  ],
+  optionFeedback: '✅ A skill encodes the workflow once in .claude/skills/. Any team member triggers it with natural language — Claude detects it from the description field.',
+  tasks: [
+    { title: 'Read the new-resource skill', desc: 'Understand the trigger mechanism — the description field is what Claude pattern-matches against.', code: 'cat .claude/skills/new-resource/SKILL.md' },
+    { title: 'See what\'s incomplete in src/resources/projects/', desc: 'The projects resource has a store and validation stub — but no service, controller, or routes.', code: 'ls src/resources/projects/' },
+    { title: 'Trigger the skill with natural language', desc: 'Don\'t say "use the skill" — just describe what you want. Claude detects the skill from your words.', code: '# In Claude Code:\nComplete the projects resource — scaffold the missing files following\nthe 5-file pattern. Mount it in app.js and add tests.' },
+    { title: 'Watch the checklist execute', desc: 'Claude should follow the skill\'s 6-step checklist. Read each step as it runs — compare to the SKILL.md.', code: '' },
+    { title: 'Verify the result', desc: 'Run tests and hit the new endpoint. Both should work.', code: 'npm test\ncurl http://localhost:3000/api/projects' },
+    { title: 'Check the Swagger UI', desc: 'Open http://localhost:3000 — does the projects resource appear? If not, ask Claude to add it.', code: 'open http://localhost:3000' },
+  ],
+  bestVersion: {
+    tabs: ['SKILL.md (excerpt)', 'How triggers work', 'What to customise'],
+    panels: [
+      { type: 'code', content: `<span class="hl-comment">---\nname: new-resource\ndescription: >\n  Scaffold a new Express resource following the 5-file pattern.\n  Triggers: "new resource", "add endpoint", "scaffold",\n  "create resource", "add api", "new entity".\n---</span>
+
+<span class="hl-head"># Skill: new-resource</span>
+
+<span class="hl-head">## Steps</span>
+<span class="hl-key">1.</span> Confirm the resource name (lowercase plural)
+<span class="hl-key">2.</span> Confirm the fields and which are required
+<span class="hl-key">3.</span> Scaffold <span class="hl-val">validation.js</span> first (pure, no Express imports)
+<span class="hl-key">4.</span> Scaffold <span class="hl-val">store.js</span> with 2-3 seed records
+<span class="hl-key">5.</span> Scaffold <span class="hl-val">service.js</span> — throws NotFoundError, uses paginate()
+<span class="hl-key">6.</span> Scaffold <span class="hl-val">controller.js</span> — reads req.validated only
+<span class="hl-key">7.</span> Scaffold <span class="hl-val">routes.js</span> — wires validate() middleware
+<span class="hl-key">8.</span> Mount in <span class="hl-val">app.js</span>, write tests, run npm test + lint` },
+      { type: 'annotations', items: [
+        { num: 1, text: '<strong>description is the trigger</strong> — Claude reads only the name + description until it decides the skill applies. The body loads only when triggered.' },
+        { num: 2, text: '<strong>List trigger words explicitly</strong> — "Triggers: new resource, scaffold, create resource" makes the detection reliable.' },
+        { num: 3, text: '<strong>Skills are lazy-loaded</strong> — Claude doesn\'t pay the token cost of reading the full SKILL.md until it\'s actually triggered.' },
+      ]},
+      { type: 'annotations', items: [
+        { num: 1, text: '<strong>Order of steps matters</strong> — put validation first because it has no dependencies. If you scaffold the controller first, it references the service which doesn\'t exist yet.' },
+        { num: 2, text: '<strong>Add a done checklist</strong> — "npm test passes, lint clean, router mounted" gives Claude a clear definition of done.' },
+        { num: 3, text: '<strong>Bundle helper scripts</strong> — skills can include bash scripts in the same directory. e.g. a generate-boilerplate.sh file.' },
+      ]},
+    ]
+  },
+  takeaways: [
+    { icon: '🎯', text: 'Skills are triggered by natural language — the description field is the pattern Claude matches.' },
+    { icon: '📦', text: 'Skills are lazy-loaded — only the name + description costs tokens until the skill triggers.' },
+    { icon: '🔗', text: 'Skills are shareable via plugins — encode once, the whole team (and future projects) get it.' },
+  ]
+},
+{
+  id: 4, icon: '🤖', color: '#14b8a6',
+  eyebrow: 'Module 04', title: 'Subagents', subtitle: 'Delegate investigation without polluting your context',
+  scenario: {
+    story: `<strong>Alex</strong> is tracking down a bug in the charge processing flow. He asks Claude to "trace every caller of validatePayment() and check which ones skip the auth check." Claude reads 14 files, follows 6 call chains, opens 40,000 tokens of code — and the context window is now 79% full. Alex still hasn't written a single fix. Next time he asks a question, Claude starts forgetting earlier decisions.`,
+    chars: [
+      { name: 'Alex', role: 'Backend Eng', color: '#14b8a6' },
+    ]
+  },
+  options: [
+    { icon: '📖', title: 'Just read fewer files', desc: 'Ask Claude to search more efficiently. Hope it stays within the window.', correct: false },
+    { icon: '🤖', title: 'Delegate to a subagent', desc: 'Subagent does the investigation in its own window. Returns a 5-line summary.', correct: true },
+    { icon: '🔄', title: 'Start a new session', desc: 'Lose all context and start over.', correct: false },
+  ],
+  optionFeedback: '✅ A subagent runs in its own context window. 40K tokens of investigation noise stays there — you get a clean summary.',
+  tasks: [
+    { title: 'Try the search inline first', desc: 'Ask Claude to find all files that import from AppError.js. Note the context usage in the sidebar.', code: '# In Claude Code:\nFind every file in this repo that imports from src/errors/AppError.js\nand list which error classes each one uses.' },
+    { title: 'Clear and do the same with the explorer agent', desc: 'Use /clear to reset, then delegate the same task to the explorer agent.', code: '/clear\n\n# Then:\nUse the explorer agent to find every file that imports from AppError.js.' },
+    { title: 'Compare context usage', desc: 'Look at the context bar. The explorer agent ran its search in a separate window — your main context is still clean.', code: '' },
+    { title: 'Use the code-reviewer agent on the projects resource', desc: 'The reviewer agent runs npm test + lint in its own context and returns a structured report.', code: '# In Claude Code:\nUse the code-reviewer agent to review the projects resource.\nCheck all 6 categories and report findings.' },
+    { title: 'Read the agent definitions', desc: 'Open .claude/agents/ and compare the two agents — notice scoped tools and different models.', code: 'cat .claude/agents/code-reviewer.md\ncat .claude/agents/explorer.md' },
+  ],
+  bestVersion: {
+    tabs: ['code-reviewer.md', 'explorer.md', 'When to delegate'],
+    panels: [
+      { type: 'code', content: `<span class="hl-comment">---\nname: code-reviewer\nmodel: claude-sonnet-4-5\ntools:\n  - Read\n  - Bash(npm test)\n  - Bash(npm run lint)\n---</span>
+
+<span class="hl-head"># Code Reviewer Agent</span>
+
+You are a senior code reviewer. Review changed files against
+the project's conventions and report findings with ✅ / ⚠️ / ❌.
+
+<span class="hl-key">What you CAN do:</span>
+- Read any file in the repo
+- Run npm test
+- Run npm run lint
+
+<span class="hl-key">What you must NOT do:</span>
+- Write or modify any file
+- Run any command outside the two above
+
+Return a <span class="hl-val">## Review Summary</span> block at the end.` },
+      { type: 'code', content: `<span class="hl-comment">---\nname: explorer\nmodel: claude-haiku-4-5\ntools:\n  - Read\n  - Bash(grep)\n  - Bash(find)\n  - Bash(cat)\n---</span>
+
+<span class="hl-head"># Explorer Agent</span>
+
+Read-only exploration assistant.
+Answer questions about the codebase as efficiently as possible.
+
+<span class="hl-key">Tools:</span> grep, find, cat, Read
+<span class="hl-key">Model:</span> Haiku (cheap — mechanical search doesn't need Sonnet)
+
+<span class="hl-key">Rule:</span> Return a focused, factual answer with file paths.
+Keep the answer short — the user's main context is valuable.` },
+      { type: 'annotations', items: [
+        { num: '✅', text: '<strong>Delegate when:</strong> wide search across many files, throwaway investigation, parallel independent tasks.' },
+        { num: '✅', text: '<strong>Delegate when:</strong> the noise of the investigation would fill your context before you even start fixing.' },
+        { num: '✗', text: '<strong>Don\'t delegate when:</strong> you already know the file, it\'s one quick edit, or you need the intermediate detail yourself.' },
+        { num: '💡', text: '<strong>Model tip:</strong> use Haiku for mechanical search (explorer), Sonnet for reasoning (reviewer). Cost follows complexity.' },
+      ]},
+    ]
+  },
+  takeaways: [
+    { icon: '🧹', text: '40K tokens of investigation noise stays in the subagent — you get a 5-line summary.' },
+    { icon: '🔒', text: 'Scope agent tools deliberately — the reviewer can\'t write files, the explorer can\'t run npm.' },
+    { icon: '💰', text: 'Match model to task: Haiku for mechanical search, Sonnet for reasoning, Opus for hard architecture.' },
+  ]
+},
+{
+  id: 5, icon: '🛡️', color: '#ef4444',
+  eyebrow: 'Module 05', title: 'Permissions', subtitle: 'Guardrails that make safe defaults automatic',
+  scenario: {
+    story: `<strong>Mike</strong> is doing a big refactor. He asks Claude to "clean up and restart the dev environment." Claude runs <code>rm -rf node_modules</code>, <code>npm install</code>, then suggests <code>rm -rf dist</code>. Mike clicks accept without reading. There's no dist folder — but there <em>is</em> a <code>data/</code> folder with the staging database backup. Three seconds later, it's gone.`,
+    chars: [
+      { name: 'Mike', role: 'Junior Dev', color: '#8b5cf6' },
+    ]
+  },
+  options: [
+    { icon: '👀', title: 'Review every command manually', desc: 'Read every Claude command before accepting. Hope you don\'t get tired.', correct: false },
+    { icon: '🛡️', title: 'Allow/deny lists in settings.json', desc: 'Define what Claude can and cannot run. Enforced automatically.', correct: true },
+    { icon: '🙅', title: 'Never let Claude run commands', desc: 'Disable Bash entirely. Miss all the automation benefits.', correct: false },
+  ],
+  optionFeedback: '✅ settings.json allow/deny lists are enforced by the runtime — Claude literally cannot run blocked commands regardless of what you accept.',
+  tasks: [
+    { title: 'Read the current permissions', desc: 'Open .claude/settings.json and find the allow and deny lists. Understand each entry.', code: 'cat .claude/settings.json' },
+    { title: 'Test the deny list', desc: 'Ask Claude to run a blocked command. It should decline or report it was blocked.', code: '# In Claude Code:\nRun rm -rf node_modules to clean the install' },
+    { title: 'Test the allow list', desc: 'Ask Claude to run a test — it should run without prompting for permission.', code: '# In Claude Code:\nRun the test suite' },
+    { title: 'Try Plan mode', desc: 'Press Shift+Tab twice. Ask Claude to describe what adding a Comments resource would involve. It plans but cannot edit.', code: '# Keyboard: Shift+Tab twice (cycles: default → acceptEdits → plan)\n# Then ask:\nWhat would adding a comments resource look like?' },
+    { title: 'Add a new allow rule', desc: 'Let Claude run individual node files for quick testing.', code: '# In Claude Code:\nAdd a permission rule to .claude/settings.json that allows\nBash(node src/*) so Claude can run individual source files.' },
+  ],
+  bestVersion: {
+    tabs: ['settings.json', 'Permission modes', 'What deny blocks'],
+    panels: [
+      { type: 'code', content: `{
+  <span class="hl-key">"permissions"</span>: {
+    <span class="hl-key">"allow"</span>: [
+      <span class="hl-str">"Bash(npm test)"</span>,
+      <span class="hl-str">"Bash(npm run lint)"</span>,
+      <span class="hl-str">"Bash(npm run format)"</span>,
+      <span class="hl-str">"Bash(npm run dev)"</span>,
+      <span class="hl-str">"Bash(git status)"</span>,
+      <span class="hl-str">"Bash(git diff*)"</span>
+    ],
+    <span class="hl-key">"deny"</span>: [
+      <span class="hl-str">"Bash(rm -rf*)"</span>,   <span class="hl-comment">// blocks rm -rf anything</span>
+      <span class="hl-str">"Bash(curl*)"</span>,     <span class="hl-comment">// no outbound requests</span>
+      <span class="hl-str">"Bash(sudo*)"</span>      <span class="hl-comment">// never elevated</span>
+    ]
+  }
+}` },
+      { type: 'annotations', items: [
+        { num: 'D', text: '<strong>default</strong> — asks before every edit and command. Good for unfamiliar code.' },
+        { num: 'A', text: '<strong>acceptEdits</strong> — auto-accepts file edits, still asks for commands. Good for trusted refactors.' },
+        { num: 'P', text: '<strong>plan</strong> — read-only. Claude proposes but never changes. Toggle: Shift+Tab twice.' },
+        { num: 'B', text: '<strong>bypassPermissions</strong> — no prompts at all. CI/sandboxes only. Never on production.' },
+      ]},
+      { type: 'annotations', items: [
+        { num: '✅', text: '<strong>deny takes precedence</strong> — even if a command matches both allow and deny, deny wins.' },
+        { num: '✅', text: '<strong>Glob matching</strong> — "Bash(rm -rf*)" blocks any rm command starting with "-rf".' },
+        { num: '✅', text: '<strong>Org admins can push managed settings</strong> — users cannot override enterprise-level deny lists.' },
+        { num: '💡', text: 'Think of allow as "always approve without asking" and deny as "never allow regardless of what the user accepts".' },
+      ]},
+    ]
+  },
+  takeaways: [
+    { icon: '🔐', text: 'deny always overrides allow — even if a user clicks accept, a denied command won\'t run.' },
+    { icon: '🎚️', text: 'Plan mode (Shift+Tab ×2) is a permission mode — enforced by the runtime, not a suggestion.' },
+    { icon: '🏢', text: 'Enterprise admins can push managed settings that individuals cannot override.' },
+  ]
+},
+{
+  id: 6, icon: '🪝', color: '#f97316',
+  eyebrow: 'Module 06', title: 'Hooks', subtitle: 'Shell commands that fire on lifecycle events — deterministically',
+  scenario: {
+    story: `The team's PR review cycle keeps catching the same three issues: lint errors that snuck in, a <code>console.log</code> left behind for debugging, and a test file without the error path covered. Each review cycle costs <strong>Sarah</strong> 20 minutes. These aren't architecture problems — they're mechanical checks that a machine should run automatically the moment code is written.`,
+    chars: [
+      { name: 'Sarah', role: 'Senior Dev', color: '#3b82f6' },
+    ]
+  },
+  options: [
+    { icon: '📝', title: 'Add it to the PR checklist', desc: 'Trust people to read the checklist. Spoiler: they don\'t.', correct: false },
+    { icon: '🪝', title: 'PostToolUse hooks', desc: 'Shell commands that fire automatically after every file edit. Can\'t be skipped.', correct: true },
+    { icon: '💬', title: 'Add a rule in CLAUDE.md', desc: '"Always run lint after editing" — Claude can be talked out of it. A hook can\'t.', correct: false },
+  ],
+  optionFeedback: '✅ A hook runs a shell command. A prompt can be ignored. A hook cannot. Exit code 2 blocks the operation and feeds the reason back to Claude.',
+  tasks: [
+    { title: 'Trigger the PostToolUse lint hook', desc: 'Ask Claude to introduce a lint error. Watch the hook fire automatically after the edit.', code: '# In Claude Code:\nAdd an unused variable "const debugVal = 42" to the top of src/config.js' },
+    { title: 'Watch the hook output', desc: 'You should see ESLint output appear in the Claude Code UI immediately after the write — without you asking.', code: '' },
+    { title: 'Trigger the PreToolUse secret guard', desc: 'Ask Claude to add a comment with a fake AWS key pattern. The hook should block it with exit 2.', code: '# In Claude Code:\nAdd a comment to src/config.js: // Key: AKIA1234567890ABCDEF' },
+    { title: 'Read the hook config', desc: 'Open .claude/settings.json and find the hooks section. Understand the event names and exit code behaviour.', code: 'cat .claude/settings.json | grep -A 20 hooks' },
+    { title: 'Add a new hook — run tests after test files change', desc: 'Write a PostToolUse hook that runs npm test when Claude creates a file matching tests/**', code: '# In Claude Code:\nAdd a PostToolUse hook that runs "npm test --silent" whenever\nClaude creates or edits a file matching tests/**/*.test.js' },
+    { title: 'Clean up the lint error', desc: 'Remove the unused variable and verify lint is clean.', code: '# In Claude Code:\nRemove the unused debugVal variable from src/config.js and confirm lint passes.' },
+  ],
+  bestVersion: {
+    tabs: ['The hooks config', 'Exit code 2', 'Event reference'],
+    panels: [
+      { type: 'code', content: `{
+  <span class="hl-key">"hooks"</span>: {
+    <span class="hl-key">"PostToolUse"</span>: [{
+      <span class="hl-key">"matcher"</span>: <span class="hl-str">"Edit|Write|MultiEdit"</span>,
+      <span class="hl-key">"hooks"</span>: [{
+        <span class="hl-key">"type"</span>: <span class="hl-str">"command"</span>,
+        <span class="hl-key">"command"</span>: <span class="hl-str">"npm run lint --silent 2>&1 | head -20 || true"</span>,
+        <span class="hl-key">"description"</span>: <span class="hl-str">"Run ESLint after every file edit"</span>
+      }]
+    }],
+    <span class="hl-key">"PreToolUse"</span>: [{
+      <span class="hl-key">"matcher"</span>: <span class="hl-str">"Edit|Write|MultiEdit"</span>,
+      <span class="hl-key">"hooks"</span>: [{
+        <span class="hl-key">"type"</span>: <span class="hl-str">"command"</span>,
+        <span class="hl-key">"command"</span>: <span class="hl-str">"if grep -qE 'AKIA[0-9A-Z]{16}' \"$CLAUDE_TOOL_INPUT_FILE_PATH\" 2>/dev/null; then echo 'BLOCKED: AWS key' >&2; exit 2; fi"</span>
+      }]
+    }]
+  }
+}` },
+      { type: 'annotations', items: [
+        { num: 0, text: '<strong>Exit 0</strong> — success, operation proceeds normally.' },
+        { num: 2, text: '<strong>Exit 2</strong> — special: blocks the operation AND feeds your stderr message back to Claude so it understands why.' },
+        { num: 1, text: '<strong>Exit 1</strong> — error, but operation still proceeds. Use for warnings.' },
+        { num: '💡', text: 'Exit code 2 is the most powerful — Claude receives the message and can explain the block to the user.' },
+      ]},
+      { type: 'annotations', items: [
+        { num: 'Pre', text: '<strong>PreToolUse</strong> — fires before a tool runs. Exit 2 blocks the tool completely.' },
+        { num: 'Post', text: '<strong>PostToolUse</strong> — fires after a tool runs. Can\'t undo the action but can report on it.' },
+        { num: 'SS', text: '<strong>SessionStart</strong> — fires when a session opens. Good for injecting environment context.' },
+        { num: 'PC', text: '<strong>PreCompact</strong> — fires before context is compacted. Save state before the summary.' },
+      ]},
+    ]
+  },
+  takeaways: [
+    { icon: '⚡', text: 'A prompt can be ignored. A hook cannot. Use hooks for things too important to leave to judgment.' },
+    { icon: '🚦', text: 'Exit code 2 = block + tell Claude why. The stderr message feeds back into the conversation.' },
+    { icon: '🔄', text: 'PostToolUse lint catches errors immediately — not at PR review time, 2 hours later.' },
+  ]
+},
+{
+  id: 7, icon: '🔌', color: '#22c55e',
+  eyebrow: 'Module 07', title: 'MCP', subtitle: 'Connect Claude to live external data and systems',
+  scenario: {
+    story: `The team just upgraded to Express 5. <strong>Alex</strong> asks Claude to "refactor the route handlers for Express 5 async error handling." Claude confidently generates code using Express 4 patterns — because that's what was in its training data. The Express 5 API changed significantly, and Claude doesn't know. Every suggestion requires manual verification against the actual docs.`,
+    chars: [
+      { name: 'Alex', role: 'Backend Eng', color: '#14b8a6' },
+    ]
+  },
+  options: [
+    { icon: '📋', title: 'Paste the docs manually', desc: 'Copy the relevant Express 5 docs into the chat each time. Error-prone, tedious.', correct: false },
+    { icon: '🔌', title: 'Connect an MCP server', desc: 'MCP bridges Claude to live documentation, APIs, and databases.', correct: true },
+    { icon: '🤞', title: 'Trust training data', desc: 'Claude probably knows. It\'ll only be wrong occasionally.', correct: false },
+  ],
+  optionFeedback: '✅ MCP (Model Context Protocol) connects Claude to external systems. Claude can fetch live docs, query databases, and call APIs — not just rely on training data.',
+  tasks: [
+    { title: 'Review the included MCP stub', desc: 'The repo ships with .mcp.json pre-configured for the filesystem server — no credentials needed.', code: 'cat .mcp.json' },
+    { title: 'Update the path and register', desc: 'Replace YOUR_USERNAME with your macOS username, then register the server.', code: '# Edit .mcp.json — replace REPLACE_WITH_YOUR_USERNAME\n\n# Then register:\nclaude mcp add filesystem \\\n  --command "npx -y @modelcontextprotocol/server-filesystem $(pwd)"' },
+    { title: 'Try it — ask Claude to use the MCP', desc: 'Specify the MCP explicitly. Watch the tool calls in the sidebar — these are MCP calls.', code: '# In Claude Code:\nUsing the filesystem MCP, list all files under src/\nand give me a one-line summary of each file\'s purpose.' },
+    { title: 'Check the context cost', desc: 'Run /memory — MCP tool schemas appear in the context. More servers = more tokens per turn.', code: '/memory' },
+    { title: 'Choose another MCP (pick one)', desc: 'Add a second server from the menu below.', code: '# Express docs:\nclaude mcp add express-docs \\\n  --command "npx -y @modelcontextprotocol/server-fetch"\n\n# Node.js docs:\nclaude mcp add node-docs \\\n  --command "npx -y @modelcontextprotocol/server-fetch"\n\n# GitHub (needs PAT):\nclaude mcp add github \\\n  --command "npx -y @modelcontextprotocol/server-github" \\\n  --env GITHUB_PERSONAL_ACCESS_TOKEN=your_token' },
+    { title: 'Compare: MCP vs built-in tools', desc: 'Ask the same question with and without the MCP. Notice latency, tool calls, and accuracy differences.', code: '# Without MCP:\nWhat changed in Express 5 async error handling?\n\n# With MCP (after adding express-docs):\nUsing express-docs MCP, what changed in Express 5 async error handling?' },
+  ],
+  bestVersion: {
+    tabs: ['.mcp.json', 'MCP menu', 'Token trade-offs'],
+    panels: [
+      { type: 'code', content: `{
+  <span class="hl-key">"mcpServers"</span>: {
+    <span class="hl-key">"filesystem"</span>: {
+      <span class="hl-key">"command"</span>: <span class="hl-str">"npx"</span>,
+      <span class="hl-key">"args"</span>: [
+        <span class="hl-str">"-y"</span>,
+        <span class="hl-str">"@modelcontextprotocol/server-filesystem"</span>,
+        <span class="hl-str">"/Users/YOUR_USERNAME/Projects/claude-code-workshop"</span>
+      ],
+      <span class="hl-key">"description"</span>: <span class="hl-str">"Filesystem access — offline, no credentials needed"</span>
+    }
+  }
+}
+
+<span class="hl-comment"># Register from the file:</span>
+claude mcp add filesystem \\
+  --command <span class="hl-str">"npx -y @modelcontextprotocol/server-filesystem $(pwd)"</span>
+
+<span class="hl-comment"># List registered servers:</span>
+claude mcp list
+
+<span class="hl-comment"># Remove a server:</span>
+claude mcp remove filesystem` },
+      { type: 'annotations', items: [
+        { num: '📁', text: '<strong>@modelcontextprotocol/server-filesystem</strong> — structured file read/write access. Offline. No credentials.' },
+        { num: '🌐', text: '<strong>@modelcontextprotocol/server-fetch</strong> — fetches any URL as context. Point at Express docs, Node docs, your internal API.' },
+        { num: '🐙', text: '<strong>@modelcontextprotocol/server-github</strong> — GitHub issues, PRs, code. Needs a PAT (never put in .mcp.json in plaintext).' },
+        { num: '🗄️', text: '<strong>@modelcontextprotocol/server-sqlite</strong> — query a local SQLite database. Great for adding a real persistence layer to the workshop.' },
+      ]},
+      { type: 'annotations', items: [
+        { num: '💰', text: '<strong>Every MCP tool schema loads into context</strong> — 20 connected servers = 20 schemas per turn.' },
+        { num: '⚡', text: '<strong>Built-in tools are faster</strong> — no schema overhead, lower latency. Use MCP only for things built-ins can\'t do.' },
+        { num: '🎯', text: '<strong>Connect only what the task needs</strong> — add the GitHub MCP for a PR task, remove it when done.' },
+        { num: '🔐', text: '<strong>Credentials in env vars only</strong> — never put tokens in .mcp.json. Add .mcp.json to .gitignore if using secrets.' },
+      ]},
+    ]
+  },
+  takeaways: [
+    { icon: '🌐', text: 'MCP bridges Claude to live data — docs, databases, APIs — that weren\'t in its training.' },
+    { icon: '💰', text: 'Every connected server costs context tokens per turn. Connect only what the task needs.' },
+    { icon: '🔐', text: 'Credentials go in environment variables only — never hardcoded in .mcp.json.' },
+  ]
+},
+{
+  id: 8, icon: '🧩', color: '#ec4899',
+  eyebrow: 'Module 08', title: 'Plugins', subtitle: 'Bundle everything. Ship once. Onboard in one command.',
+  scenario: {
+    story: `A new engineer, <strong>Raj</strong>, joins the team. His manager sends him 7 links: how to set up CLAUDE.md, how to add the rules, where the skills are, which hooks to install, how to configure MCP. Two hours later, Raj has a slightly different setup from everyone else and nobody's sure why. The process isn't repeatable.`,
+    chars: [
+      { name: 'Raj', role: 'New Hire', color: '#f59e0b' },
+      { name: 'Priya', role: 'Tech Lead', color: '#ec4899' },
+    ]
+  },
+  options: [
+    { icon: '📖', title: 'Write better onboarding docs', desc: 'A 7-page guide with screenshots. Updated quarterly (maybe).', correct: false },
+    { icon: '🧩', title: 'Bundle into a plugin', desc: 'Skills, agents, rules, hooks, MCP — one install command. Consistent baseline.', correct: true },
+    { icon: '💁', title: 'Pair Raj with a senior', desc: 'Sarah walks Raj through setup. Takes 90 minutes of Sarah\'s time.', correct: false },
+  ],
+  optionFeedback: '✅ A plugin bundles everything in .claude/ into a single installable unit. One command, consistent setup, works in Claude Code and Cowork.',
+  tasks: [
+    { title: 'Browse the marketplace', desc: 'Open the plugin browser inside Claude Code.', code: '/plugin' },
+    { title: 'Install claude-automation-recommender', desc: 'Install the plugin directly by name.', code: '/plugin install claude-automation-recommender' },
+    { title: 'Run the recommender on this repo', desc: 'Ask it to analyse the codebase and suggest automations.', code: '# In Claude Code:\nAnalyse this Express API project and recommend automations.\nFocus on hooks, skills, and agent roles that fit this codebase.' },
+    { title: 'Compare recommendations to .claude/', desc: 'Which recommendations are already implemented? Which are new? Discuss with your pair.', code: 'ls -R .claude/' },
+    { title: 'View the workshop plugin manifest', desc: 'Open PLUGIN.md to see how the workshop setup is described as a plugin.', code: 'cat PLUGIN.md 2>/dev/null || echo "Create it in the next step"' },
+    { title: 'Install the workshop as a plugin', desc: 'Install the current .claude/ setup as a local plugin. On a fresh repo, this gives Raj everything in one command.', code: '/plugin install .' },
+  ],
+  bestVersion: {
+    tabs: ['PLUGIN.md', 'Plugin structure', 'The onboarding win'],
+    panels: [
+      { type: 'code', content: `<span class="hl-comment">---\nname: presidio-tasks-api\nversion: 1.0.0\ndescription: >\n  Claude Code setup for the Presidio Tasks API.\n  Installs the full team baseline: skills, agents,\n  rules, hooks, and permissions.\nauthor: Presidio Engineering\n---</span>
+
+<span class="hl-head"># Presidio Tasks API Plugin</span>
+
+Installs the full Claude Code setup for any Express API project:
+
+<span class="hl-key">Skills:</span>
+- <span class="hl-val">new-resource</span>  — scaffold a 5-file resource (routes/controller/service/validation/store)
+- <span class="hl-val">code-reviewer</span> — structured review checklist
+
+<span class="hl-key">Agents:</span>
+- <span class="hl-val">code-reviewer</span> — Sonnet, read-only + npm test/lint
+- <span class="hl-val">explorer</span>      — Haiku, grep/find/read only
+
+<span class="hl-key">Rules:</span>
+- <span class="hl-val">resources.md</span>  — path-scoped: src/resources/**
+- <span class="hl-val">security.md</span>   — global: no secrets, no console.log
+
+<span class="hl-key">Hooks:</span>
+- PostToolUse lint   — fires after every file edit
+- PreToolUse secrets — blocks AWS key patterns (exit 2)` },
+      { type: 'code', content: `presidio-tasks-api/
+  <span class="hl-key">PLUGIN.md</span>                  <span class="hl-comment">← manifest (required)</span>
+  .claude/
+    skills/
+      new-resource/
+        <span class="hl-val">SKILL.md</span>
+      code-reviewer/
+        <span class="hl-val">SKILL.md</span>
+    agents/
+      <span class="hl-val">code-reviewer.md</span>
+      <span class="hl-val">explorer.md</span>
+    rules/
+      <span class="hl-val">resources.md</span>
+      <span class="hl-val">security.md</span>
+    <span class="hl-val">settings.json</span>            <span class="hl-comment">← hooks + permissions</span>
+
+<span class="hl-comment"># Install locally:</span>
+/plugin install ./presidio-tasks-api
+
+<span class="hl-comment"># Install from GitHub:</span>
+/plugin install github:presidio-eng/claude-plugins#tasks-api` },
+      { type: 'annotations', items: [
+        { num: 1, text: '<strong>Before plugins:</strong> Raj gets 7 links, spends 2 hours, ends up with a slightly wrong setup.' },
+        { num: 2, text: '<strong>After plugins:</strong> Raj runs "/plugin install ." and gets the team\'s exact baseline in 30 seconds.' },
+        { num: 3, text: '<strong>Plugins work in Cowork too</strong> — the same setup that helps engineers also helps non-technical team members.' },
+        { num: 4, text: '<strong>Ship a Presidio baseline plugin</strong> — every new project installs it. Consistent standards across the org from day one.' },
+      ]},
+    ]
+  },
+  takeaways: [
+    { icon: '📦', text: 'One plugin installs skills + agents + rules + hooks + permissions in a single command.' },
+    { icon: '🔄', text: 'Plugins work in Claude Code and Cowork — developers and non-developers on the same baseline.' },
+    { icon: '🏢', text: 'An org-wide Presidio plugin means every new project starts with the team\'s best practices pre-installed.' },
+  ]
+},
+{
+  id: 9, icon: '🗜️', color: '#6366f1',
+  eyebrow: 'Module 09', title: 'Compaction', subtitle: 'Context discipline — the habit that keeps everything else working',
+  scenario: {
+    story: `<strong>Sarah</strong> has been working with Claude on a feature for 50 minutes. The context bar is at 87%. She asks Claude to "continue with the service layer changes we planned." Claude responds confidently — but it contradicts a decision it made 40 messages ago. It's not lying: it has genuinely lost track. The window is saturated and quality has degraded without Sarah noticing.`,
+    chars: [
+      { name: 'Sarah', role: 'Senior Dev', color: '#3b82f6' },
+    ]
+  },
+  options: [
+    { icon: '📖', title: 'Just keep going', desc: 'Claude is still working. Maybe it\'ll remember the important parts.', correct: false },
+    { icon: '🗜️', title: 'Compact or clear proactively', desc: 'Don\'t wait for auto-compaction at 95%. Manage context deliberately.', correct: true },
+    { icon: '🔄', title: 'Start a completely new session', desc: 'Lose all context, re-explain everything from scratch.', correct: false },
+  ],
+  optionFeedback: '✅ /compact summarises the thread and keeps going. /clear wipes for a clean start. The handoff pattern bridges both: write state to a file, start fresh, read it back.',
+  tasks: [
+    { title: 'Do some work to fill context', desc: 'Run through a few exercises — ask Claude to explain 3 files, scaffold something, run a review. Check the context bar.', code: '# In Claude Code (a few prompts):\nExplain how the validate() middleware works.\nExplain how paginate() is used in the service layer.\nWhat would adding a comments resource look like?' },
+    { title: 'Check the context indicator', desc: 'Look at the context usage indicator in the Claude Code UI. If it\'s above 50%, you\'re ready for this exercise.', code: '' },
+    { title: 'Compact mid-session', desc: 'Run /compact. Read the summary Claude produces — what did it keep? What did it lose?', code: '/compact' },
+    { title: 'Test what survived', desc: 'Ask about something specific from before the compaction. Notice what Claude remembers vs what it lost.', code: '# In Claude Code:\nWhat were the last 3 things we talked about before the compact?\nWhat decisions did we make about the projects resource?' },
+    { title: 'Practice the handoff pattern', desc: 'Write a PROGRESS.md that captures current state, then clear and reload it.', code: '# In Claude Code:\nWrite a PROGRESS.md capturing: what we\'ve done today,\nwhat\'s still todo, and any key decisions we made.\n\n# Then:\n/clear\n\n# Then:\nRead PROGRESS.md and continue from where we left off.' },
+    { title: 'Reflect on the Ultra Flow', desc: 'You\'ve now touched every feature. Chain them together on a new task.', code: '# The full chain:\n# 1. Explorer agent → maps the codebase\n# 2. Plan mode → draft steps, you approve\n# 3. new-resource skill → scaffold\n# 4. code-reviewer agent → verify\n# 5. /compact or handoff → preserve state' },
+  ],
+  bestVersion: {
+    tabs: ['When to use what', 'Handoff template', 'The Ultra Flow'],
+    panels: [
+      { type: 'annotations', items: [
+        { num: '🗑️', text: '<strong>/clear</strong> — wipe the slate between completely unrelated tasks. Cheapest reset. Use liberally.' },
+        { num: '🗜️', text: '<strong>/compact</strong> — summarise the thread, keep going on the same task. Auto-fires at ~95% full — don\'t wait for it.' },
+        { num: '📄', text: '<strong>Handoff</strong> — write state to PROGRESS.md, start fresh, read it back. Survives a full reset with intent intact.' },
+        { num: '⚠️', text: '<strong>Warning sign:</strong> if Claude contradicts its earlier decisions or repeats itself, the window is saturated. Act now.' },
+      ]},
+      { type: 'code', content: `<span class="hl-head"># PROGRESS.md</span>
+
+<span class="hl-head">## Session goal</span>
+Add the projects resource to the Tasks API.
+
+<span class="hl-head">## Done ✅</span>
+- projects.validation.js — validates name, description, status
+- projects.store.js — 2 seed records (active + archived)
+- projects.service.js — list() with paginate(), get() with NotFoundError
+
+<span class="hl-head">## Still todo</span>
+- projects.controller.js — needs to read req.validated
+- projects.routes.js — wire validate() middleware
+- Mount in app.js (look for the TODO comment)
+- Write tests in tests/projects.test.js
+
+<span class="hl-head">## Key decisions</span>
+- Projects don't have priority or tags (kept it simple for the exercise)
+- GET /api/projects supports ?status filter
+
+<span class="hl-head">## Blockers</span>
+None — continue from projects.controller.js` },
+      { type: 'code', content: `<span class="hl-comment"># The Ultra Flow — chain every feature on one task</span>
+
+<span class="hl-head">1. Explore</span>    <span class="hl-str">Use explorer agent to map codebase</span>
+          <span class="hl-comment">↓ summary back to main context</span>
+
+<span class="hl-head">2. Plan</span>      <span class="hl-str">Switch to plan mode (Shift+Tab ×2)</span>
+          <span class="hl-str">Claude drafts steps — you correct them</span>
+          <span class="hl-comment">↓ approved plan</span>
+
+<span class="hl-head">3. Execute</span>   <span class="hl-str">Trigger the new-resource skill</span>
+          <span class="hl-str">Small, reviewable chunks</span>
+          <span class="hl-comment">↓ files written, hooks fire</span>
+
+<span class="hl-head">4. Verify</span>    <span class="hl-str">code-reviewer agent checks the diff</span>
+          <span class="hl-str">npm test + lint (auto from hooks)</span>
+          <span class="hl-comment">↓ structured review summary</span>
+
+<span class="hl-head">5. Persist</span>   <span class="hl-str">Write PROGRESS.md if spanning sessions</span>
+          <span class="hl-str">/compact or /clear as appropriate</span>` },
+    ]
+  },
+  takeaways: [
+    { icon: '📊', text: 'Context degrades silently — don\'t wait for auto-compaction. Compact when you see the first signs.' },
+    { icon: '📄', text: 'The handoff pattern (write → clear → read) gives you a clean window without losing intent.' },
+    { icon: '⚙️', text: 'The Ultra Flow chains all 9 features together. Each stage keeps your main context lean.' },
+  ]
+}
+];
+
+// ── State ────────────────────────────────────────────────────────────────────
+const state = {
+  current: 0,
+  done: new Set(),
+  tasksDone: {}, // moduleId → Set of task indices
+  startTime: Date.now(),
+};
+
+// ── Timer ────────────────────────────────────────────────────────────────────
+setInterval(() => {
+  const s = Math.floor((Date.now() - state.startTime) / 1000);
+  const m = Math.floor(s / 60).toString().padStart(2, '0');
+  const ss = (s % 60).toString().padStart(2, '0');
+  document.getElementById('timer').textContent = `${m}:${ss}`;
+}, 1000);
+
+// ── Render sidebar ───────────────────────────────────────────────────────────
+function renderSidebar() {
+  const nav = document.getElementById('module-nav');
+  nav.innerHTML = MODULES.map((m, i) => `
+    <div class="nav-item ${i === state.current ? 'active' : ''} ${state.done.has(i) ? 'done' : ''}"
+         style="--module-color:${m.color}"
+         onclick="goTo(${i})">
+      <div class="nav-dot">${state.done.has(i) ? '✓' : m.id}</div>
+      <div class="nav-item-text">
+        <div class="nav-item-num">Module ${String(m.id).padStart(2,'0')}</div>
+        <div class="nav-item-title">${m.title}</div>
+      </div>
+    </div>
+  `).join('');
+
+  const done = state.done.size;
+  const pct = Math.round(done / MODULES.length * 100);
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('progress-text').textContent = `${done} / ${MODULES.length}`;
+}
+
+// ── Render module ────────────────────────────────────────────────────────────
+function renderModule(m, idx) {
+  const tasksDone = state.tasksDone[m.id] || new Set();
+
+  const optionsHtml = m.options.map((o, oi) => `
+    <div class="option-card" id="opt-${m.id}-${oi}" onclick="selectOption(${m.id},${oi},${o.correct})">
+      <div class="option-icon">${o.icon}</div>
+      <div class="option-title">${o.title}</div>
+      <div class="option-desc">${o.desc}</div>
+      <span class="option-badge">${o.correct ? '✓ Right' : '✗ Not quite'}</span>
+    </div>
+  `).join('');
+
+  const tasksHtml = m.tasks.map((t, ti) => `
+    <div class="task-item ${tasksDone.has(ti) ? 'done' : ''}" id="task-${m.id}-${ti}">
+      <div class="task-check" onclick="toggleTask(${m.id},${ti})">
+        ${tasksDone.has(ti) ? '<svg width="12" height="12" viewBox="0 0 12 12"><polyline points="2,6 5,9 10,3" stroke="#000" stroke-width="2" fill="none" stroke-linecap="round"/></svg>' : ''}
+      </div>
+      <div class="task-content">
+        <div class="task-step">Step ${ti + 1}</div>
+        <div class="task-title">${t.title}</div>
+        <div class="task-desc">${t.desc}</div>
+        ${t.code ? `<div class="task-code"><button class="copy-btn" onclick="copyCode(this)">Copy</button><span>${t.code}</span></div>` : ''}
+      </div>
+    </div>
+  `).join('');
+
+  const bv = m.bestVersion;
+  const bvTabsHtml = bv.tabs.map((tab, ti) =>
+    `<div class="bv-tab ${ti === 0 ? 'active' : ''}" onclick="switchBvTab(${m.id},${ti})">${tab}</div>`
+  ).join('');
+  const bvPanelsHtml = bv.panels.map((panel, pi) => {
+    let inner = '';
+    if (panel.type === 'code') {
+      inner = `<div class="bv-code"><button class="copy-btn" onclick="copyCode(this)">Copy</button>${panel.content}</div>`;
+    } else if (panel.type === 'annotations') {
+      inner = `<div class="annotation-list">${panel.items.map(a =>
+        `<div class="annotation"><div class="annotation-num">${a.num}</div><div class="annotation-text">${a.text}</div></div>`
+      ).join('')}</div>`;
+    }
+    return `<div class="bv-panel ${pi === 0 ? 'active' : ''}" id="bvpanel-${m.id}-${pi}">${inner}</div>`;
+  }).join('');
+
+  const charsHtml = m.scenario.chars.map(c =>
+    `<div class="char-chip"><div class="char-avatar" style="background:${c.color}">${c.name[0]}</div><span><strong>${c.name}</strong> · ${c.role}</span></div>`
+  ).join('');
+
+  const takeawaysHtml = m.takeaways.map(t =>
+    `<div class="takeaway"><span class="takeaway-icon">${t.icon}</span><span>${t.text}</span></div>`
+  ).join('');
+
+  const isComplete = state.done.has(idx);
+
+  return `
+    <div class="module-view ${idx === state.current ? 'active' : ''}" id="module-${idx}">
+      <div class="module-header" style="--module-color:${m.color}">
+        <div class="module-eyebrow">${m.eyebrow}</div>
+        <div class="module-title-row">
+          <span class="module-icon">${m.icon}</span>
+          <div>
+            <h1 class="module-h1">${m.title}</h1>
+            <div class="module-subtitle">${m.subtitle}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="module-body">
+
+        <!-- Scenario -->
+        <div class="scenario-card" style="--module-color:${m.color}">
+          <div class="scenario-label">
+            <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="5.5"/><path d="M7 4v4M7 9.5v.5"/></svg>
+            The Scenario
+          </div>
+          <div class="scenario-story">${m.scenario.story}</div>
+          <div class="scenario-chars">${charsHtml}</div>
+        </div>
+
+        <!-- Problem options -->
+        <div class="section-heading">What's the right approach?</div>
+        <div class="options-grid">${optionsHtml}</div>
+        <div class="callout" id="feedback-${m.id}" style="display:none;border-color:rgba(74,222,128,0.4);background:rgba(74,222,128,0.06)"></div>
+
+        <div class="divider"></div>
+
+        <!-- Tasks -->
+        <div class="section-heading">Your tasks</div>
+        <div class="tasks-section">
+          <div class="task-list">${tasksHtml}</div>
+        </div>
+
+        <button class="complete-btn ${isComplete ? 'done' : ''}" id="complete-btn-${m.id}"
+                style="--module-color:${m.color}"
+                onclick="markComplete(${idx})">
+          ${isComplete ? '✓ Section Complete — View Reference Below' : `Mark "${m.title}" Complete →`}
+        </button>
+
+        <!-- Best version -->
+        <div class="best-version ${isComplete ? 'visible' : ''}" id="best-${m.id}">
+          <div class="best-version-header">
+            <span class="bv-icon">✨</span>
+            <div>
+              <h3>Reference Implementation</h3>
+              <p>Compare with what you built. These are the key patterns.</p>
+            </div>
+          </div>
+          <div class="best-version-tabs">${bvTabsHtml}</div>
+          ${bvPanelsHtml}
+        </div>
+
+        <!-- Takeaways -->
+        ${isComplete ? `
+        <div class="divider"></div>
+        <div class="section-heading">Key takeaways</div>
+        <div class="takeaways">${takeawaysHtml}</div>
+        ` : ''}
+
+      </div>
+    </div>
+  `;
+}
+
+// ── Initial render ───────────────────────────────────────────────────────────
+function renderAll() {
+  const stage = document.getElementById('stage');
+  stage.innerHTML = MODULES.map((m, i) => renderModule(m, i)).join('');
+  renderSidebar();
+  updateNavButtons();
+}
+
+// ── Navigation ───────────────────────────────────────────────────────────────
+function goTo(idx) {
+  state.current = idx;
+  document.querySelectorAll('.module-view').forEach((el, i) => {
+    el.classList.toggle('active', i === idx);
+  });
+  document.getElementById('stage').scrollTop = 0;
+  renderSidebar();
+  updateNavButtons();
+}
+
+function navigate(dir) {
+  const next = state.current + dir;
+  if (next >= 0 && next < MODULES.length) goTo(next);
+  else if (next >= MODULES.length) showCompletion();
+}
+
+function updateNavButtons() {
+  const prev = document.getElementById('btn-prev');
+  const next = document.getElementById('btn-next');
+  prev.disabled = state.current === 0;
+  next.textContent = state.current === MODULES.length - 1 ? 'Finish Workshop →' : 'Next →';
+  const m = MODULES[state.current];
+  next.style.background = m.color;
+}
+
+// ── Option selection ─────────────────────────────────────────────────────────
+function selectOption(moduleId, optIdx, correct) {
+  const m = MODULES.find(x => x.id === moduleId);
+  m.options.forEach((_, i) => {
+    const el = document.getElementById(`opt-${moduleId}-${i}`);
+    el.classList.remove('selected-right', 'selected-wrong');
+  });
+  const el = document.getElementById(`opt-${moduleId}-${optIdx}`);
+  el.classList.add(correct ? 'selected-right' : 'selected-wrong');
+  const fb = document.getElementById(`feedback-${moduleId}`);
+  fb.style.display = 'block';
+  fb.innerHTML = m.optionFeedback;
+}
+
+// ── Task toggle ──────────────────────────────────────────────────────────────
+function toggleTask(moduleId, taskIdx) {
+  if (!state.tasksDone[moduleId]) state.tasksDone[moduleId] = new Set();
+  const s = state.tasksDone[moduleId];
+  if (s.has(taskIdx)) s.delete(taskIdx);
+  else s.add(taskIdx);
+
+  const item = document.getElementById(`task-${moduleId}-${taskIdx}`);
+  const check = item.querySelector('.task-check');
+  const isDone = s.has(taskIdx);
+  item.classList.toggle('done', isDone);
+  check.innerHTML = isDone
+    ? '<svg width="12" height="12" viewBox="0 0 12 12"><polyline points="2,6 5,9 10,3" stroke="#000" stroke-width="2" fill="none" stroke-linecap="round"/></svg>'
+    : '';
+}
+
+// ── Mark complete ────────────────────────────────────────────────────────────
+function markComplete(idx) {
+  const m = MODULES[idx];
+  state.done.add(idx);
+
+  const btn = document.getElementById(`complete-btn-${m.id}`);
+  btn.textContent = '✓ Section Complete — View Reference Below';
+  btn.classList.add('done');
+
+  const bv = document.getElementById(`best-${m.id}`);
+  bv.classList.add('visible');
+
+  // Append takeaways if not there
+  const body = bv.closest('.module-body');
+  if (!body.querySelector('.takeaways')) {
+    const div = document.createElement('div');
+    div.innerHTML = `
+      <div class="divider"></div>
+      <div class="section-heading">Key takeaways</div>
+      <div class="takeaways">${m.takeaways.map(t =>
+        `<div class="takeaway"><span class="takeaway-icon">${t.icon}</span><span>${t.text}</span></div>`
+      ).join('')}</div>`;
+    body.appendChild(div);
+  }
+
+  renderSidebar();
+  bv.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ── Best version tabs ────────────────────────────────────────────────────────
+function switchBvTab(moduleId, tabIdx) {
+  const m = MODULES.find(x => x.id === moduleId);
+  const bvEl = document.getElementById(`best-${moduleId}`);
+  bvEl.querySelectorAll('.bv-tab').forEach((t, i) => t.classList.toggle('active', i === tabIdx));
+  m.bestVersion.panels.forEach((_, i) => {
+    const p = document.getElementById(`bvpanel-${moduleId}-${i}`);
+    if (p) p.classList.toggle('active', i === tabIdx);
+  });
+}
+
+// ── Copy code ────────────────────────────────────────────────────────────────
+function copyCode(btn) {
+  const container = btn.parentElement;
+  const text = container.querySelector('span') || container;
+  navigator.clipboard.writeText(text.textContent.trim()).then(() => {
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1800);
+  });
+}
+
+// ── Completion ───────────────────────────────────────────────────────────────
+function showCompletion() {
+  if (state.done.size < MODULES.length) {
+    // Navigate to finish even if not all done
+  }
+  document.getElementById('stage').style.display = 'none';
+  const c = document.getElementById('completion');
+  c.classList.add('show');
+
+  const badges = document.getElementById('completion-badges');
+  badges.innerHTML = MODULES.map(m =>
+    `<div class="badge"><span>${m.icon}</span>${m.title}</div>`
+  ).join('');
+
+  spawnConfetti();
+}
+
+function spawnConfetti() {
+  const wrap = document.getElementById('confetti');
+  const colors = ['#f59e0b','#3b82f6','#8b5cf6','#ec4899','#22c55e','#f97316','#14b8a6'];
+  for (let i = 0; i < 80; i++) {
+    const el = document.createElement('div');
+    el.className = 'confetti-piece';
+    el.style.cssText = `
+      left: ${Math.random()*100}%;
+      background: ${colors[Math.floor(Math.random()*colors.length)]};
+      border-radius: ${Math.random() > 0.5 ? '50%' : '2px'};
+      width: ${4 + Math.random()*8}px;
+      height: ${4 + Math.random()*8}px;
+      animation-duration: ${1.5 + Math.random()*2}s;
+      animation-delay: ${Math.random()*1}s;
+    `;
+    wrap.appendChild(el);
+  }
+}
+
+// ── Keyboard ─────────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.key === 'ArrowRight') navigate(1);
+  if (e.key === 'ArrowLeft') navigate(-1);
+  if (e.key === ' ') { e.preventDefault(); markComplete(state.current); }
+});
+
+// ── Boot ─────────────────────────────────────────────────────────────────────
+renderAll();
+</script>
+</body>
+</html>
